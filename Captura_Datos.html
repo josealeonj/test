@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analizador de Comercios GPS y Fotos</title>
+    <!-- Configuración para PWA (para instalar como App en Android) -->
+    <meta name="theme-color" content="#4f46e5">
+    
+    <!-- Carga de Tailwind CSS para un diseño moderno y responsive (mobile-first) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Carga de Leaflet CSS (SIN ATRIBUTO INTEGRITY) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    
+    <style>
+        /* Aplicando la fuente Inter por defecto */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        .container-app {
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        .btn-action {
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
+        .btn-action:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        .table-container {
+            overflow-x: auto;
+            max-width: 100%;
+        }
+        #image-preview {
+            max-height: 150px;
+            object-fit: cover;
+            width: 100%;
+            border-radius: 0.5rem;
+        }
+        /* Contenedor del mapa - Altura obligatoria para que Leaflet funcione */
+        #map-container {
+            height: 300px; /* Suficiente altura para móvil */
+            width: 100%;
+            border-radius: 0.75rem;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            margin-bottom: 1.5rem;
+        }
+        /* Estilo para los popups del mapa */
+        .leaflet-popup-content-wrapper {
+            border-radius: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app" class="container-app mx-auto max-w-lg">
+    <header class="text-center py-4 mb-6">
+        <h1 class="text-3xl font-extrabold text-indigo-700">Analizador de Mercado Móvil</h1>
+        <p class="text-gray-600">Captura datos geoespaciales clave con almacenamiento optimizado.</p>
+    </header>
+
+    <!-- Sección de Mensajes de Estado -->
+    <div id="message-box" class="mb-4 hidden p-3 rounded-xl text-sm font-medium border-l-4" role="alert"></div>
+
+    <!-- MAPA INTERACTIVO -->
+    <div class="bg-white p-6 rounded-xl shadow-2xl mb-6 border border-gray-100">
+        <h2 class="text-xl font-bold mb-4 text-indigo-600">Mapa de Locales Guardados</h2>
+        <div id="map-container" class="bg-gray-200">
+            <!-- El mapa se inicializa aquí -->
+        </div>
+        <button id="show-map-button" 
+                class="btn-action w-full flex items-center justify-center space-x-2 px-4 py-3 
+                       bg-gray-200 text-gray-800 font-bold rounded-xl hover:bg-gray-300 focus:outline-none focus:ring-4 focus:ring-gray-300">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+              <path fill-rule="evenodd" d="m3.05 3.05 1.745 1.745A1.5 1.5 0 0 1 5.25 6v6a.75.75 0 0 0 1.5 0V6a.75.75 0 0 1 .53-.22L20.95 2.29a.75.75 0 0 0-.29-.29L3.05 3.05ZM1.5 8.25a.75.75 0 0 1 .75-.75h2.25a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Zm0 3.75a.75.75 0 0 1 .75-.75h5.25a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Zm0 3.75a.75.75 0 0 1 .75-.75h.085a.75.75 0 0 1-.005 1.5H2.25a.75.75 0 0 1-.75-.75Zm19.5-8.25a.75.75 0 0 0-1.5 0v10.5a.75.75 0 0 0 1.5 0V7.5Zm-2.25 10.5a.75.75 0 0 0 0 1.5h.085a.75.75 0 0 0 .005-1.5h-.09ZM5.25 18a.75.75 0 0 0-.75.75v.375c0 .414.336.75.75.75h7.375a.75.75 0 0 0 0-1.5H5.25Z" clip-rule="evenodd" />
+            </svg>
+            <span>Centrar Mapa en Locales</span>
+        </button>
+    </div>
+
+    <!-- Tarjeta de Entrada de Datos -->
+    <div class="bg-white p-6 rounded-xl shadow-2xl mb-6 border border-gray-100">
+        <h2 class="text-xl font-bold mb-4 text-indigo-600">Detalles del Local</h2>
+        
+        <!-- Nombre y Descripción -->
+        <div class="mb-4">
+            <label for="local-nombre" class="block text-sm font-medium text-gray-700 mb-1">1. Nombre del Local / Tipo de Negocio</label>
+            <input type="text" id="local-nombre" placeholder="Ej: Panadería El Sol o Local Vacío" 
+                   class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required>
+        </div>
+
+        <!-- Categoría (Análisis de Mercado) -->
+        <div class="mb-4">
+            <label for="local-categoria" class="block text-sm font-medium text-gray-700 mb-1">2. Categoría Principal</label>
+            <select id="local-categoria" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                <option value="Comercio Minorista">Comercio Minorista (Retail)</option>
+                <option value="Restaurante/Comida">Restaurante / Comida</option>
+                <option value="Servicios Personales">Servicios Personales (Peluquería, Lavandería, etc.)</option>
+                <option value="Oficinas/Consultorios">Oficinas / Consultorios</option>
+                <option value="Local Vacio/Disponible">Local Vacío / Disponible</option>
+                <option value="Otro">Otro</option>
+            </select>
+        </div>
+
+        <!-- Estado Operacional (Análisis de Oportunidad) -->
+        <div class="mb-4">
+            <label for="local-estado" class="block text-sm font-medium text-gray-700 mb-1">3. Estado Operacional</label>
+            <select id="local-estado" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                <option value="Operando con exito">Operando con éxito (Mucha clientela)</option>
+                <option value="Operando normal">Operando normal (Tráfico moderado)</option>
+                <option value="Baja Actividad">Baja actividad / Próximo a cerrar</option>
+                <option value="Cerrado/Vacio">Cerrado / Local disponible (Gran oportunidad)</option>
+                <option value="En Construccion">En Construcción</option>
+            </select>
+        </div>
+        
+        <!-- Tráfico Peatonal -->
+        <div class="mb-4">
+            <label for="local-trafico" class="block text-sm font-medium text-gray-700 mb-1">4. Tráfico Peatonal Estimado (Ahora)</label>
+            <select id="local-trafico" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                <option value="Alto">Alto (Constantemente gente)</option>
+                <option value="Medio">Medio (Pasan personas ocasionalmente)</option>
+                <option value="Bajo">Bajo (Casi nadie pasa)</option>
+                <option value="Nulo">Nulo (Zona muerta)</option>
+            </select>
+        </div>
+
+        <!-- Foto del Local -->
+        <div class="mb-6 border-t pt-4 border-gray-200">
+            <label class="block text-sm font-medium text-gray-700 mb-2">5. Foto del Local</label>
+            <input type="file" id="local-foto" accept="image/*" capture="camera" 
+                   class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+            <img id="image-preview" src="" alt="Previsualización de la foto" class="mt-3 hidden border-2 border-dashed border-gray-300 p-1">
+            <p class="text-xs text-gray-500 mt-1">Se recomienda tomar fotos de baja resolución para no llenar el espacio de almacenamiento.</p>
+        </div>
+        
+        <div class="mb-6">
+            <label for="local-comentarios" class="block text-sm font-medium text-gray-700 mb-1">6. Comentarios / Dirección Específica</label>
+            <textarea id="local-comentarios" rows="3" placeholder="Ej: Esquina con poco sol, cerca de un parque. Dirección: Calle 10 # 5-22" 
+                      class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+        </div>
+        
+        <!-- Botón de Captura y Guardado -->
+        <button id="capture-button" 
+                class="btn-action w-full flex items-center justify-center space-x-2 px-4 py-3 
+                       bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+              <path d="M11.54 22.351A8.287 8.287 0 0 0 18.287 18H20.25a.75.75 0 0 0 .75-.75V5.25a.75.75 0 0 0-.75-.75h-2.25m-1.5 12.001a14.735 14.735 0 0 1-1.427 1.251l-.727.677 1.491 1.49a.75.75 0 0 0 1.06 0l2.617-2.618a.75.75 0 0 0 0-1.06l-1.491-1.491Zm-8.497 1.251a14.733 14.733 0 0 0-1.427-1.251H3.75a.75.75 0 0 1-.75-.75V5.25a.75.75 0 0 1 .75-.75h14.25a.75.75 0 0 1 .75.75v12.75a.75.75 0 0 1-.75.75h-2.25ZM9.75 14.25a.75.75 0 0 0 0 1.5h.007a.75.75 0 0 0 0-1.5H9.75Zm.375-3.75a.75.75 0 1 0 0 1.5h.007a.75.75 0 1 0 0-1.5H10.125ZM12 8.25a.75.75 0 0 0 0 1.5h.007a.75.75 0 0 0 0-1.5H12Z" clip-rule="evenodd" />
+            </svg>
+            <span>Capturar Foto, GPS y Guardar Registro</span>
+        </button>
+    </div>
+
+    <!-- Sección de Registros Guardados y Exportación -->
+    <div class="bg-white p-6 rounded-xl shadow-2xl mb-6 border border-gray-100">
+        <h2 class="text-xl font-bold mb-4 text-indigo-600">Registros Guardados (<span id="record-count">0</span>)</h2>
+        
+        <div id="records-list" class="table-container mb-4">
+            <!-- La tabla de datos se generará aquí -->
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <button id="export-button" 
+                    class="btn-action w-full flex items-center justify-center space-x-2 px-4 py-3 
+                           bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-300 disabled:opacity-50"
+                    disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                  <path d="M19.5 7.5A2.25 2.25 0 0 0 17.25 5.25H4.5a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 20.25h12.75a2.25 2.25 0 0 0 2.25-2.25V15m-6-6.75 3 3m0 0-3 3m3-3h-9.75" />
+                </svg>
+                <span>Exportar a CSV</span>
+            </button>
+
+            <button id="clear-button" 
+                    class="btn-action w-full flex items-center justify-center space-x-2 px-4 py-3 
+                           bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 focus:outline-none focus:ring-4 focus:ring-red-300 disabled:opacity-50"
+                    disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                  <path fill-rule="evenodd" d="M16.5 4.5V2.25a.75.75 0 0 0-1.5 0v2.25H9.75V2.25a.75.75 0 0 0-1.5 0v2.25H6a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 6 20.25h12a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 18 4.5h-1.5ZM16 11.25a.75.75 0 1 0-1.5 0v4.5a.75.75 0 1 0 1.5 0v-4.5ZM12 11.25a.75.75 0 1 0 0 1.5h.007a.75.75 0 0 0 0-1.5H12ZM8 11.25a.75.75 0 1 0 0 1.5h.007a.75.75 0 0 0 0-1.5H8Z" clip-rule="evenodd" />
+                </svg>
+                <span>Borrar Datos Locales</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Carga del JavaScript de Leaflet (SIN ATRIBUTO INTEGRITY) -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+<script>
+    // Variables y Constantes
+    const captureButton = document.getElementById('capture-button');
+    const exportButton = document.getElementById('export-button');
+    const clearButton = document.getElementById('clear-button'); 
+    const showMapButton = document.getElementById('show-map-button'); 
+    const localNombreInput = document.getElementById('local-nombre');
+    const localCategoriaSelect = document.getElementById('local-categoria');
+    const localEstadoSelect = document.getElementById('local-estado');
+    const localTraficoSelect = document.getElementById('local-trafico');
+    const localComentariosTextarea = document.getElementById('local-comentarios');
+    const localFotoInput = document.getElementById('local-foto');
+    const imagePreview = document.getElementById('image-preview');
+    const recordsList = document.getElementById('records-list');
+    const messageBox = document.getElementById('message-box');
+    const recordCountSpan = document.getElementById('record-count');
+
+    let records = []; 
+    let currentImageBase64 = null; 
+    let map = null; 
+    let markers = null; 
+
+    // Configuración de IndexedDB
+    const DB_NAME = 'MarketAnalyzerDB';
+    const DB_VERSION = 1;
+    const STORE_NAME = 'marketRecords';
+
+    // --- IndexedDB Functions (Almacenamiento Offline Optimizado) ---
+
+    function openDatabase() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+            request.onerror = (event) => {
+                console.error("Error al abrir IndexedDB:", event.target.errorCode);
+                reject("Error de IndexedDB");
+            };
+
+            request.onsuccess = (event) => {
+                resolve(event.target.result);
+            };
+
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                // Crear el Object Store si no existe. Usa 'id' como clave principal.
+                if (!db.objectStoreNames.contains(STORE_NAME)) {
+                    db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+                }
+            };
+        });
+    }
+
+    async function getRecordsFromDB() {
+        try {
+            const db = await openDatabase();
+            const transaction = db.transaction([STORE_NAME], 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.getAll();
+
+            return new Promise((resolve) => {
+                request.onsuccess = (event) => {
+                    // Invertir el orden para que los más nuevos aparezcan primero en la UI
+                    resolve(event.target.result.reverse());
+                };
+                request.onerror = () => resolve([]);
+            });
+        } catch (error) {
+            console.error("Error al obtener registros de IndexedDB:", error);
+            return [];
+        }
+    }
+
+    async function saveRecordToDB(record) {
+        try {
+            const db = await openDatabase();
+            const transaction = db.transaction([STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            
+            await new Promise((resolve, reject) => {
+                const request = store.add(record); 
+                request.onsuccess = () => resolve();
+                request.onerror = (e) => reject(e);
+            });
+            return true;
+        } catch (error) {
+            console.error("Error al guardar registro en IndexedDB:", error);
+            if (error.name === 'QuotaExceededError') {
+                 showMessage('ERROR: El almacenamiento optimizado está lleno. ¡Debes exportar y borrar los datos ahora!', 'error');
+            } else {
+                 showMessage('Error al guardar datos. Intenta nuevamente.', 'error');
+            }
+            return false;
+        }
+    }
+
+    async function clearAllRecords() {
+        try {
+            const db = await openDatabase();
+            const transaction = db.transaction([STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            
+            await new Promise((resolve, reject) => {
+                const request = store.clear();
+                request.onsuccess = () => resolve();
+                request.onerror = (e) => reject(e);
+            });
+            
+            records = []; // Limpiar la copia local en memoria
+            renderRecords();
+            updateMapMarkers();
+            showMessage('¡Todos los registros guardados localmente han sido eliminados con éxito!', 'success');
+        } catch (error) {
+            console.error("Error al limpiar IndexedDB:", error);
+            showMessage('Error al intentar borrar los datos locales. Revisa la consola.', 'error');
+        }
+    }
+
+    // --- Utilidades de Interfaz ---
+
+    function showMessage(text, type = 'info') {
+        let bgColor, textColor, borderColor;
+        if (type === 'success') {
+            bgColor = 'bg-green-100';
+            borderColor = 'border-green-500';
+            textColor = 'text-green-800';
+        } else if (type === 'error') {
+            bgColor = 'bg-red-100';
+            borderColor = 'border-red-500';
+            textColor = 'text-red-800';
+        } else { // info
+            bgColor = 'bg-indigo-100';
+            borderColor = 'border-indigo-500';
+            textColor = 'text-indigo-800';
+        }
+        
+        messageBox.className = `mb-4 p-3 rounded-xl border-l-4 ${bgColor} ${borderColor} ${textColor} text-sm font-medium block`;
+        messageBox.textContent = text;
+        messageBox.classList.remove('hidden');
+        
+        // Ocultar mensaje después de 8 segundos
+        setTimeout(() => {
+            messageBox.classList.add('hidden');
+        }, 8000);
+    }
+
+    function resetCaptureButton() {
+        captureButton.disabled = false;
+        captureButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                                    <path d="M11.54 22.351A8.287 8.287 0 0 0 18.287 18H20.25a.75.75 0 0 0 .75-.75V5.25a.75.75 0 0 0-.75-.75h-2.25m-1.5 12.001a14.735 14.735 0 0 1-1.427 1.251l-.727.677 1.491 1.49a.75.75 0 0 0 1.06 0l2.617-2.618a.75.75 0 0 0 0-1.06l-1.491-1.491Zm-8.497 1.251a14.733 14.733 0 0 0-1.427-1.251H3.75a.75.75 0 0 1-.75-.75V5.25a.75.75 0 0 1 .75-.75h14.25a.75.75 0 0 1 .75.75v12.75a.75.75 0 0 1-.75.75h-2.25ZM9.75 14.25a.75.75 0 0 0 0 1.5h.007a.75.75 0 0 0 0-1.5H9.75Zm.375-3.75a.75.75 0 1 0 0 1.5h.007a.75.75 0 1 0 0-1.5H10.125ZM12 8.25a.75.75 0 0 0 0 1.5h.007a.75.75 0 0 0 0-1.5H12Z" clip-rule="evenodd" />
+                                </svg>
+                                <span>Capturar Foto, GPS y Guardar Registro</span>`;
+    }
+
+    // --- Lógica de Mapa ---
+
+    function initializeMap() {
+        // DOBLE CHECK: Esto se ejecutará solo después de que Leaflet esté cargado (gracias a window.onload)
+        if (typeof L === 'undefined' || typeof L.map === 'undefined') {
+            console.error("Leaflet no se ha cargado completamente. La inicialización falló.");
+            return;
+        }
+
+        const defaultLat = 4.7110; // Coordenadas de ejemplo (Bogotá)
+        const defaultLon = -74.0721; 
+
+        if (map === null) {
+            map = L.map('map-container').setView([defaultLat, defaultLon], 13);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            markers = L.layerGroup(); 
+            markers.addTo(map); 
+        }
+
+        updateMapMarkers();
+    }
+
+    function updateMapMarkers() {
+        if (!map || !markers) return; 
+
+        markers.clearLayers(); 
+
+        if (records.length === 0) return;
+
+        const latLngs = [];
+
+        records.forEach((record, index) => {
+            // ID visual para el usuario (más nuevo = ID más alto)
+            const displayIndex = records.length - index; 
+
+            const lat = parseFloat(record.latitud);
+            const lon = parseFloat(record.longitud);
+
+            if (isNaN(lat) || isNaN(lon)) return;
+
+            latLngs.push([lat, lon]);
+
+            const popupContent = `
+                <div class="font-sans text-sm">
+                    <p class="text-indigo-700 font-bold mb-1">${record.nombre} (ID: ${displayIndex})</p>
+                    <p class="text-gray-600">**Cat:** ${record.categoria}</p>
+                    <p class="text-gray-600">**Estado:** ${record.estadoOperacional}</p>
+                    <p class="text-gray-600">**Tráfico:** ${record.traficoPeatonal}</p>
+                    <p class="text-gray-400 mt-1">${record.latitud}, ${record.longitud}</p>
+                    ${record.imagenBase64 ? `<img src="${record.imagenBase64}" style="max-width:150px; height:auto; margin-top: 8px; border-radius: 4px;">` : ''}
+                </div>
+            `;
+
+            const marker = L.marker([lat, lon]).bindPopup(popupContent);
+            markers.addLayer(marker);
+        });
+
+        // Ajusta el mapa para mostrar todos los marcadores
+        if (latLngs.length > 0) {
+            const bounds = L.latLngBounds(latLngs);
+            map.fitBounds(bounds, { padding: [50, 50] }); 
+        }
+    }
+
+    function centerMapOnRecords() {
+        if (!map) {
+             showMessage('El mapa no está listo todavía.', 'error');
+             return;
+        }
+
+        if (records.length > 0) {
+            const latLngs = records.map(r => [parseFloat(r.latitud), parseFloat(r.longitud)]);
+            const validLatLngs = latLngs.filter(l => !isNaN(l[0]) && !isNaN(l[1]));
+
+            if (validLatLngs.length > 0) {
+                const bounds = L.latLngBounds(validLatLngs);
+                map.fitBounds(bounds, { padding: [50, 50] });
+                return;
+            }
+        } 
+        
+        // Si no hay records, intenta centrar en la ubicación actual
+        if (navigator.geolocation) {
+             showMessage('Centrando mapa en tu ubicación actual...', 'info');
+             navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    map.setView([lat, lon], 13);
+                },
+                (error) => {
+                    showMessage('No se pudo obtener la ubicación actual para centrar el mapa.', 'error');
+                },
+                { timeout: 5000 }
+            );
+        }
+    }
+
+    // --- Lógica de Imagen (Base64) y Guardado ---
+    
+    localFotoInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (!file) {
+            currentImageBase64 = null;
+            imagePreview.classList.add('hidden');
+            imagePreview.src = '';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            currentImageBase64 = e.target.result;
+            imagePreview.src = currentImageBase64;
+            imagePreview.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+    });
+
+    async function saveLocalWithGeolocation() {
+        const nombre = localNombreInput.value.trim();
+        const categoria = localCategoriaSelect.value;
+        const estado = localEstadoSelect.value;
+        const trafico = localTraficoSelect.value;
+        const comentarios = localComentariosTextarea.value.trim();
+
+        if (!nombre) {
+            showMessage('Por favor, ingresa el Nombre del Local (Paso 1).', 'error');
+            localNombreInput.focus();
+            return;
+        }
+        
+        if (!localFotoInput.files[0]) {
+             showMessage('¡Falta la foto! Por favor, toma una foto del local (Paso 5).', 'error');
+             return;
+        }
+
+        captureButton.disabled = true;
+        captureButton.innerHTML = `<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                  </svg>
+                                  <span>Obteniendo ubicación GPS...</span>`;
+        
+        showMessage('Buscando ubicación GPS. Por favor, acepta la solicitud de permiso.', 'info');
+
+        if (navigator.geolocation) {
+            const options = { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 };
+
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const { latitude, longitude, accuracy } = position.coords;
+                    const timestamp = new Date().toLocaleString('es-ES');
+                    
+                    const newRecord = {
+                        nombre: nombre,
+                        categoria: categoria,
+                        estadoOperacional: estado,
+                        traficoPeatonal: trafico,
+                        latitud: latitude.toFixed(6),
+                        longitud: longitude.toFixed(6),
+                        precisionGPS: accuracy.toFixed(2) + 'm',
+                        comentarios: comentarios,
+                        fechaCaptura: timestamp,
+                        imagenBase64: currentImageBase64 // El Base64 de la foto
+                    };
+
+                    const success = await saveRecordToDB(newRecord);
+
+                    if (success) {
+                        await loadRecordsFromApp(); // Recarga los datos para refrescar la UI
+                        
+                        // Limpiar el formulario
+                        localNombreInput.value = '';
+                        localComentariosTextarea.value = '';
+                        localFotoInput.value = '';
+                        currentImageBase64 = null;
+                        imagePreview.classList.add('hidden');
+                        
+                        showMessage(`¡Local "${nombre}" guardado con éxito! Capacidad de almacenamiento maximizada.`, 'success');
+                    }
+                    resetCaptureButton();
+                },
+                (error) => {
+                    let errorMessage = "Error GPS. Asegúrate de tener la ubicación activada.";
+                    if (error.code === error.PERMISSION_DENIED) errorMessage = "Permiso de ubicación denegado.";
+                    if (error.code === error.TIMEOUT) errorMessage = "Tiempo de espera agotado.";
+                    
+                    showMessage(`Error: ${errorMessage}`, 'error');
+                    resetCaptureButton();
+                },
+                options
+            );
+        } else {
+            showMessage('Tu dispositivo no soporta la Geolocation API.', 'error');
+            resetCaptureButton();
+        }
+    }
+
+
+    // --- Persistencia, Renderizado y Exportación ---
+
+    async function loadRecordsFromApp() {
+        records = await getRecordsFromDB();
+        renderRecords();
+        updateMapMarkers();
+    }
+
+    function renderRecords() {
+        recordCountSpan.textContent = records.length;
+
+        if (records.length === 0) {
+            recordsList.innerHTML = `<p class="text-center text-gray-500 py-4">Aún no hay locales registrados. ¡El almacenamiento está limpio!</p>`;
+            exportButton.disabled = true;
+            clearButton.disabled = true;
+            return;
+        }
+
+        exportButton.disabled = false;
+        clearButton.disabled = false;
+
+        const tableHTML = `
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Local / Categoría</th>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado / Tráfico</th>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ubicación GPS</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    ${records.slice(0, 10).map((record, index) => {
+                        const displayIndex = records.length - index;
+                        return `
+                            <tr class="hover:bg-gray-50" title="${record.comentarios}">
+                                <td class="px-3 py-2 whitespace-nowrap text-sm font-bold text-indigo-700">
+                                    ${record.nombre}
+                                    <span class="block text-xs font-normal text-gray-500">ID: ${displayIndex} | ${record.categoria}</span>
+                                </td>
+                                <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
+                                    ${record.estadoOperacional}
+                                    <span class="block text-xs text-gray-400">Tráfico: ${record.traficoPeatonal}</span>
+                                </td>
+                                <td class="px-3 py-2 text-xs text-gray-600">
+                                    Lat: ${record.latitud}<br>
+                                    Lon: ${record.longitud}
+                                </td>
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+            ${records.length > 10 ? `<p class="text-xs text-center text-gray-500 mt-2">... Mostrando solo los 10 registros más recientes de ${records.length} en total.</p>` : ''}
+        `;
+        recordsList.innerHTML = tableHTML;
+    }
+
+    function convertArrayOfObjectsToCSV(data) {
+        if (data.length === 0) return '';
+
+        const headers = [
+            "Fecha Captura", 
+            "Nombre del Local", 
+            "Categoria", 
+            "Estado Operacional", 
+            "Trafico Peatonal", 
+            "Latitud", 
+            "Longitud", 
+            "Precision GPS (m)", 
+            "Comentarios", 
+            "IMAGEN BASE64 (ATENCION: COLUMNA LARGA)"
+        ];
+        // Usamos ; como separador para evitar problemas con comas en comentarios
+        let csv = headers.join(";") + "\n"; 
+
+        data.forEach(record => {
+            const row = [
+                `"${record.fechaCaptura}"`,
+                `"${record.nombre.replace(/"/g, '""')}"`,
+                `"${record.categoria}"`,
+                `"${record.estadoOperacional}"`,
+                `"${record.traficoPeatonal}"`,
+                record.latitud,
+                record.longitud,
+                record.precisionGPS.replace('m', ''), 
+                // Limpiamos comentarios de saltos de línea y reemplazamos comillas
+                `"${record.comentarios.replace(/"/g, '""').replace(/\n/g, ' ')}"`, 
+                record.imagenBase64 || "" 
+            ].join(";");
+            csv += row + "\n";
+        });
+
+        return csv;
+    }
+
+    function exportDataToCSV() {
+        if (records.length === 0) {
+            showMessage('No hay datos para exportar.', 'error');
+            return;
+        }
+        
+        const csvContent = convertArrayOfObjectsToCSV(records);
+        
+        const bom = new Uint8Array([0xEF, 0xBB, 0xBF]); // BOM para UTF-8 (necesario para acentos)
+        const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' });
+        
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        
+        // Generar nombre de archivo único
+        const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        a.download = `estudio_comercios_${timestamp}.csv`;
+        a.href = url;
+        
+        // Simula el clic para descargar el archivo en la carpeta de Descargas
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showMessage(`¡${records.length} registros exportados con éxito a la carpeta de Descargas!`, 'success');
+    }
+    
+    // --- Inicialización y Eventos ---
+
+    window.onload = async function() {
+        // 1. Cargar datos y renderizar UI
+        await loadRecordsFromApp(); 
+
+        // 2. Inicializar el mapa (seguro de que Leaflet.js ya cargó)
+        initializeMap(); 
+        
+        // 3. Pequeño retraso para asegurar que el mapa se renderice
+        setTimeout(() => {
+            centerMapOnRecords();
+        }, 500);
+        
+        // 4. Configuración de Event Listeners 
+        captureButton.addEventListener('click', saveLocalWithGeolocation);
+        exportButton.addEventListener('click', exportDataToCSV);
+        showMapButton.addEventListener('click', centerMapOnRecords);
+        
+        // Event Listener para el botón de borrado
+        clearButton.addEventListener('click', () => {
+            // Reemplaza window.confirm con un mensaje de alerta suave
+            const userConfirmed = confirm('¡ATENCIÓN! ¿Estás seguro de que quieres BORRAR TODOS los registros locales? Asegúrate de haber exportado el CSV antes de confirmar.');
+            
+            if (userConfirmed) {
+                clearAllRecords();
+            } else {
+                showMessage('Operación de borrado cancelada.', 'info');
+            }
+        });
+
+        // Mensaje inicial de bienvenida
+        showMessage("¡Aplicación lista! Los datos se guardan de forma local en tu navegador.", 'info');
+    };
+</script>
+
+</body>
+</html>
