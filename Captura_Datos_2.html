@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Captura de Datos de Comercios (Firestore)</title>
+    <!-- Tailwind CSS (Aesthetics and Responsiveness) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Custom Styles for better mobile experience */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .container-main {
+            max-width: 100%;
+            padding: 0;
+        }
+        .form-card {
+            background-color: white;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+            border-radius: 0.75rem;
+        }
+        .record-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+        .record-table th, .record-table td {
+            padding: 0.75rem 0.5rem;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .record-table th {
+            background-color: #f9fafb;
+            color: #374151;
+            font-weight: 600;
+        }
+        .record-table tr:hover {
+            background-color: #f3f4f6;
+        }
+        /* Style for the temporary image display */
+        #photo-preview {
+            max-width: 100%;
+            height: auto;
+            border-radius: 0.5rem;
+            margin-top: 0.5rem;
+            display: none; /* Initially hidden */
+        }
+        /* Mobile-first adjustments */
+        @media (min-width: 640px) {
+            .container-main {
+                max-width: 1024px;
+                margin: 0 auto;
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+<div class="container-main p-4 md:p-8">
+    <h1 class="text-3xl font-extrabold text-gray-800 mb-6 text-center">
+        <i data-lucide="map-pin" class="inline-block w-8 h-8 mr-2 text-indigo-600"></i>
+        Captura de Datos de Comercios (Firestore)
+    </h1>
+
+    <!-- FORMULARIO DE CAPTURA -->
+    <div class="form-card mb-8">
+        <h2 class="text-xl font-semibold text-indigo-700 mb-4 border-b pb-2">1. Capturar Nuevo Registro</h2>
+
+        <form id="record-form" class="space-y-4">
+            <!-- Nombre del Local -->
+            <div>
+                <label for="localName" class="block text-sm font-medium text-gray-700">Nombre del Local</label>
+                <input type="text" id="localName" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+            </div>
+
+            <!-- Categoría -->
+            <div>
+                <label for="category" class="block text-sm font-medium text-gray-700">Categoría</label>
+                <select id="category" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border bg-white">
+                    <option value="">Seleccione una categoría</option>
+                    <option value="Restaurante/Comida">Restaurante/Comida</option>
+                    <option value="Minorista/Tienda">Minorista/Tienda</option>
+                    <option value="Servicios/Salud">Servicios/Salud</option>
+                    <option value="Local Vacio/Disponible">Local Vacío/Disponible</option>
+                    <option value="Otro">Otro</option>
+                </select>
+            </div>
+
+            <!-- Estado Operacional -->
+            <div>
+                <label for="status" class="block text-sm font-medium text-gray-700">Estado Operacional</label>
+                <select id="status" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border bg-white">
+                    <option value="">Seleccione el estado</option>
+                    <option value="Operando con éxito">Operando con éxito</option>
+                    <option value="Recién abierto">Recién abierto</option>
+                    <option value="Cerrado temporalmente">Cerrado temporalmente</option>
+                    <option value="Cerrado permanentemente">Cerrado permanentemente</option>
+                </select>
+            </div>
+
+            <!-- Tráfico Peatonal -->
+            <div>
+                <label for="traffic" class="block text-sm font-medium text-gray-700">Tráfico Peatonal</label>
+                <select id="traffic" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border bg-white">
+                    <option value="">Seleccione el nivel de tráfico</option>
+                    <option value="Alto">Alto</option>
+                    <option value="Medio">Medio</option>
+                    <option value="Bajo">Bajo</option>
+                </select>
+            </div>
+
+            <!-- Captura de Ubicación GPS -->
+            <div class="p-4 bg-indigo-50 rounded-lg shadow-inner">
+                <h3 class="font-medium text-indigo-700 mb-3 flex items-center">
+                    <i data-lucide="locate" class="w-5 h-5 mr-2"></i>
+                    Ubicación GPS
+                </h3>
+                <button type="button" id="captureGPS" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-150 flex items-center justify-center">
+                    <i data-lucide="compass" class="w-5 h-5 mr-2"></i>
+                    Capturar Ubicación Actual
+                </button>
+                <p id="gps-status" class="mt-2 text-sm text-center font-medium text-indigo-700">Esperando captura...</p>
+                <div class="mt-3 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                        <label class="block text-gray-600">Latitud</label>
+                        <input type="text" id="latitude" readonly required class="mt-1 block w-full rounded-md border-gray-300 bg-gray-100 p-2 border">
+                    </div>
+                    <div>
+                        <label class="block text-gray-600">Longitud</label>
+                        <input type="text" id="longitude" readonly required class="mt-1 block w-full rounded-md border-gray-300 bg-gray-100 p-2 border">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-gray-600">Precisión (m)</label>
+                        <input type="text" id="accuracy" readonly required class="mt-1 block w-full rounded-md border-gray-300 bg-gray-100 p-2 border">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Captura de Foto -->
+            <div class="p-4 bg-green-50 rounded-lg shadow-inner">
+                <h3 class="font-medium text-green-700 mb-3 flex items-center">
+                    <i data-lucide="camera" class="w-5 h-5 mr-2"></i>
+                    Foto del Local
+                </h3>
+                <input type="file" id="photoFile" accept="image/*" capture="environment" class="hidden">
+                <button type="button" id="openCamera" class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition duration-150 flex items-center justify-center">
+                    <i data-lucide="image" class="w-5 h-5 mr-2"></i>
+                    Abrir Cámara y Capturar Foto
+                </button>
+                <img id="photo-preview" src="#" alt="Previsualización de la foto" class="mt-3">
+                <input type="hidden" id="base64Image" required>
+            </div>
+
+            <!-- Comentarios -->
+            <div>
+                <label for="comments" class="block text-sm font-medium text-gray-700">Comentarios Adicionales</label>
+                <textarea id="comments" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"></textarea>
+            </div>
+
+            <!-- Botón de Guardar -->
+            <button type="submit" id="saveButton" class="w-full bg-blue-600 text-white py-3 px-4 rounded-md font-semibold text-lg hover:bg-blue-700 transition duration-150 flex items-center justify-center">
+                <i data-lucide="save" class="w-6 h-6 mr-2"></i>
+                Guardar Registro en la Nube
+            </button>
+        </form>
+        <p id="message-box" class="mt-4 text-center font-medium"></p>
+    </div>
+
+    <!-- TABLA DE REGISTROS GUARDADOS -->
+    <div class="form-card overflow-x-auto">
+        <h2 class="text-xl font-semibold text-indigo-700 mb-4 border-b pb-2 flex justify-between items-center">
+            2. Registros Guardados (Tiempo Real)
+            <button id="exportCSV" class="bg-purple-600 text-white text-sm py-1.5 px-3 rounded-md hover:bg-purple-700 transition duration-150 flex items-center">
+                <i data-lucide="download" class="w-4 h-4 mr-1"></i>
+                Exportar a CSV
+            </button>
+        </h2>
+        <div id="auth-info" class="text-xs text-gray-500 mb-2 p-2 bg-gray-100 rounded">
+            Estatus de Autenticación: <span id="user-id-display">Cargando...</span>
+        </div>
+        <table id="records-table" class="record-table">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Coordenadas</th>
+                    <th>Categoría</th>
+                    <th>Foto</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="records-body">
+                <!-- Los registros se insertarán aquí por JavaScript -->
+                <tr><td colspan="5" class="text-center text-gray-500">Cargando datos de Firestore...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- MODAL DE VISUALIZACIÓN DE IMAGEN -->
+    <div id="image-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center p-4 z-50" onclick="hideModal()">
+        <div class="relative max-w-lg w-full bg-white rounded-lg overflow-hidden" onclick="event.stopPropagation()">
+            <button class="absolute top-2 right-2 text-white bg-black bg-opacity-50 rounded-full p-1" onclick="hideModal()">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+            <img id="modal-image" src="" alt="Imagen del registro" class="w-full h-auto">
+        </div>
+    </div>
+
+</div>
+
+<!-- FIREBASE IMPORTS -->
+<script type="module">
+    // Importaciones necesarias de Firebase
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, onSnapshot, collection, query, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // Inicialización y configuración
+    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+    let app, db, auth, currentUserId = null;
+    let recordsListener = null;
+
+    const messageBox = document.getElementById('message-box');
+    const recordsBody = document.getElementById('records-body');
+    const userIdDisplay = document.getElementById('user-id-display');
+    const saveButton = document.getElementById('saveButton');
+
+    // Función de Inicialización y Autenticación
+    async function initializeFirebase() {
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+
+            // 1. Manejar Autenticación
+            await new Promise((resolve) => {
+                const unsubscribe = onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        currentUserId = user.uid;
+                        userIdDisplay.textContent = `Usuario autenticado (ID: ${currentUserId})`;
+                        console.log("Firestore inicializado y usuario autenticado:", currentUserId);
+                        // 2. Iniciar la escucha de datos solo después de la autenticación
+                        startRecordsListener();
+                    } else if (initialAuthToken) {
+                        // Intenta iniciar sesión con el token personalizado
+                        await signInWithCustomToken(auth, initialAuthToken);
+                        // onAuthStateChanged se disparará de nuevo con el usuario autenticado
+                    } else {
+                        // Si no hay token, inicia sesión anónimamente
+                        await signInAnonymously(auth);
+                        // onAuthStateChanged se disparará de nuevo con el usuario anónimo
+                    }
+                    unsubscribe(); // Detener el listener después del chequeo inicial
+                    resolve();
+                });
+            });
+
+        } catch (error) {
+            console.error("Error al inicializar Firebase o autenticar:", error);
+            userIdDisplay.textContent = 'ERROR DE CONEXIÓN. Revisa la consola.';
+            showMessage(`Error al conectar con la base de datos: ${error.message}`, 'text-red-600');
+        }
+    }
+
+    // Determina la ruta de la colección privada del usuario
+    function getRecordsCollectionPath() {
+        if (!currentUserId) {
+            console.error("No hay ID de usuario disponible para la ruta de Firestore.");
+            return null;
+        }
+        // Ruta de colección privada (segura): /artifacts/{appId}/users/{userId}/records
+        return `artifacts/${appId}/users/${currentUserId}/records`;
+    }
+
+    // ----------------------------------------------------------------------
+    // LECTURA DE DATOS (onSnapshot)
+    // ----------------------------------------------------------------------
+
+    function startRecordsListener() {
+        const path = getRecordsCollectionPath();
+        if (!path || recordsListener) return;
+
+        const recordsCollectionRef = collection(db, path);
+        const q = query(recordsCollectionRef);
+
+        // onSnapshot escucha los cambios en tiempo real
+        recordsListener = onSnapshot(q, (snapshot) => {
+            const records = [];
+            snapshot.forEach((doc) => {
+                records.push({ id: doc.id, ...doc.data() });
+            });
+            renderRecordsTable(records);
+        }, (error) => {
+            console.error("Error al escuchar los registros en tiempo real:", error);
+            showMessage("Error al cargar los datos: " + error.message, 'text-red-600');
+            renderRecordsTable([]); // Muestra tabla vacía
+        });
+    }
+
+    function renderRecordsTable(records) {
+        if (!recordsBody) return;
+
+        if (records.length === 0) {
+            recordsBody.innerHTML = '<tr><td colspan="5" class="text-center text-gray-500 p-4">Aún no hay registros en la nube. ¡Captura uno!</td></tr>';
+            return;
+        }
+
+        recordsBody.innerHTML = records.map(record => {
+            // Mostrar solo una parte del Base64 para la tabla
+            const base64Snippet = record.imagenBase64 ? record.imagenBase64.substring(0, 30) + '...' : 'N/A';
+            const coords = `${record.latitude.toFixed(6)}, ${record.longitude.toFixed(6)}`;
+            const hasImage = !!record.imagenBase64;
+
+            return `
+                <tr data-id="${record.id}">
+                    <td class="font-medium">${record.localName}</td>
+                    <td>${coords} (${record.accuracy.toFixed(1)}m)</td>
+                    <td>${record.category}</td>
+                    <td>
+                        <button onclick="showModal('${record.imagenBase64}')" ${hasImage ? '' : 'disabled'}
+                                class="text-xs font-semibold py-1 px-2 rounded-full ${hasImage ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}"
+                                title="${hasImage ? 'Ver Foto' : 'No hay foto'}">
+                            ${hasImage ? 'Ver Foto' : 'Sin Foto'}
+                        </button>
+                    </td>
+                    <td>
+                        <button onclick="deleteRecord('${record.id}')" class="text-red-500 hover:text-red-700 transition duration-150" title="Eliminar">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        // Re-renderizar iconos de Lucide después de actualizar el HTML
+        lucide.createIcons();
+    }
+
+    // ----------------------------------------------------------------------
+    // ESCRITURA DE DATOS (setDoc)
+    // ----------------------------------------------------------------------
+
+    document.getElementById('record-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        saveButton.disabled = true;
+        saveButton.innerHTML = `<i data-lucide="loader-circle" class="w-6 h-6 mr-2 animate-spin"></i> Guardando...`;
+
+        const path = getRecordsCollectionPath();
+        if (!path) {
+            showMessage("Error: La autenticación no ha finalizado. Inténtalo de nuevo.", 'text-red-600');
+            saveButton.disabled = false;
+            saveButton.innerHTML = `<i data-lucide="save" class="w-6 h-6 mr-2"></i> Guardar Registro en la Nube`;
+            lucide.createIcons();
+            return;
+        }
+
+        const data = {
+            localName: document.getElementById('localName').value,
+            category: document.getElementById('category').value,
+            status: document.getElementById('status').value,
+            traffic: document.getElementById('traffic').value,
+            latitude: parseFloat(document.getElementById('latitude').value),
+            longitude: parseFloat(document.getElementById('longitude').value),
+            accuracy: parseFloat(document.getElementById('accuracy').value),
+            comments: document.getElementById('comments').value,
+            imagenBase64: document.getElementById('base64Image').value, // Cadena Base64 completa
+            userId: currentUserId,
+            timestamp: serverTimestamp() // Marca de tiempo de Firestore
+        };
+
+        try {
+            // Genera un ID único para el nuevo documento
+            const newDocRef = doc(collection(db, path));
+
+            // Usa setDoc para guardar el registro
+            await setDoc(newDocRef, data);
+
+            // Limpia el formulario y muestra éxito
+            e.target.reset();
+            document.getElementById('photo-preview').style.display = 'none';
+            document.getElementById('gps-status').textContent = 'Esperando captura...';
+            showMessage('Registro guardado exitosamente en la nube.', 'text-green-600');
+
+        } catch (error) {
+            console.error("Error al guardar el documento:", error);
+            showMessage(`ERROR: No se pudo guardar el registro: ${error.message}`, 'text-red-600');
+        } finally {
+            saveButton.disabled = false;
+            saveButton.innerHTML = `<i data-lucide="save" class="w-6 h-6 mr-2"></i> Guardar Registro en la Nube`;
+            lucide.createIcons();
+        }
+    });
+
+    // ----------------------------------------------------------------------
+    // ELIMINACIÓN DE DATOS (deleteDoc)
+    // ----------------------------------------------------------------------
+
+    window.deleteRecord = async function(docId) {
+        if (!confirm('¿Estás seguro de que quieres eliminar este registro de la nube?')) return;
+
+        const path = getRecordsCollectionPath();
+        if (!path) {
+            showMessage("Error: No se pudo acceder a la colección de registros.", 'text-red-600');
+            return;
+        }
+
+        try {
+            const docRef = doc(db, path, docId);
+            await deleteDoc(docRef);
+            showMessage(`Registro ${docId} eliminado correctamente.`, 'text-red-500');
+        } catch (error) {
+            console.error("Error al eliminar el documento:", error);
+            showMessage(`ERROR al eliminar: ${error.message}`, 'text-red-600');
+        }
+    };
+
+
+    // ----------------------------------------------------------------------
+    // UTILIDADES
+    // ----------------------------------------------------------------------
+
+    function showMessage(msg, colorClass) {
+        messageBox.textContent = msg;
+        messageBox.className = `mt-4 text-center font-medium ${colorClass}`;
+        setTimeout(() => {
+            messageBox.textContent = '';
+            messageBox.className = `mt-4 text-center font-medium`;
+        }, 5000);
+    }
+
+    // ----------------------------------------------------------------------
+    // EXPORTACIÓN A CSV
+    // ----------------------------------------------------------------------
+
+    document.getElementById('exportCSV').addEventListener('click', () => {
+        // La data ya está en la tabla, la extraemos directamente del DOM o la generamos
+        // de la lista de records. Usaremos la lista de records para asegurar la integridad.
+
+        // Necesitamos la lista actual de records, pero como está en el scope del onSnapshot,
+        // usaremos el método más simple de acceder a los datos que están actualmente renderizados
+        // o generamos un JSON con la data para luego convertirla a CSV.
+
+        const tableRows = recordsBody.querySelectorAll('tr[data-id]');
+        if (tableRows.length === 0) {
+            showMessage("No hay datos para exportar.", 'text-orange-500');
+            return;
+        }
+
+        // 1. Obtener los datos actuales (esto requiere volver a cargar la data o guardarla globalmente)
+        // Ya que la data está en Firestore, se puede generar un nuevo snapshot.
+        const path = getRecordsCollectionPath();
+        if (!path) return;
+
+        const recordsCollectionRef = collection(db, path);
+        // Hacemos una lectura puntual de los datos para la exportación
+        onSnapshot(recordsCollectionRef, (snapshot) => {
+            const recordsToExport = [];
+            snapshot.forEach((doc) => {
+                recordsToExport.push({ id: doc.id, ...doc.data() });
+            });
+            createCSV(recordsToExport);
+        });
+    });
+
+    function createCSV(records) {
+        if (records.length === 0) return;
+
+        // Definir el orden y los encabezados
+        const headers = [
+            'ID Registro', 'Fecha Captura', 'Nombre del Local', 'Categoria',
+            'Estado Operacional', 'Trafico Peatonal', 'Latitud', 'Longitud',
+            'Precision GPS (m)', 'Comentarios', 'IMAGEN BASE64 (ATENCION: COLUMNA LARGA)'
+        ];
+
+        // Usar punto y coma (;) como delimitador
+        let csvContent = headers.join(DELIMITER) + "\n";
+
+        records.forEach(record => {
+            const row = [
+                record.id,
+                record.timestamp ? new Date(record.timestamp.seconds * 1000).toLocaleString('es-ES') : 'N/A',
+                `"${record.localName.replace(/"/g, '""')}"`, // Escapar comillas dobles
+                record.category,
+                record.status,
+                record.traffic,
+                record.latitude,
+                record.longitude,
+                record.accuracy.toFixed(2),
+                `"${record.comments.replace(/"/g, '""')}"`,
+                `"${record.imagenBase64.replace(/"/g, '""')}"` // Base64 entre comillas para evitar cortes
+            ];
+            csvContent += row.join(DELIMITER) + "\n";
+        });
+
+        // Crear Blob y enlace de descarga
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+
+        link.setAttribute('href', url);
+        link.setAttribute('download', `estudio_comercios_${new Date().getFullYear()}${new Date().getMonth() + 1}${new Date().getDate()}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        showMessage('CSV generado y listo para descargar.', 'text-purple-600');
+    }
+
+    // ----------------------------------------------------------------------
+    // CÁMARA Y GPS LÓGICA (NO-FIREBASE)
+    // ----------------------------------------------------------------------
+
+    // Lógica GPS
+    document.getElementById('captureGPS').addEventListener('click', () => {
+        document.getElementById('gps-status').textContent = 'Buscando ubicación...';
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                document.getElementById('latitude').value = position.coords.latitude.toFixed(6);
+                document.getElementById('longitude').value = position.coords.longitude.toFixed(6);
+                document.getElementById('accuracy').value = position.coords.accuracy.toFixed(2);
+                document.getElementById('gps-status').textContent = 'Ubicación capturada.';
+                document.getElementById('gps-status').classList.remove('text-indigo-700');
+                document.getElementById('gps-status').classList.add('text-green-700');
+            },
+            (error) => {
+                console.error("Error GPS:", error);
+                document.getElementById('gps-status').textContent = `ERROR GPS: ${error.message}`;
+                document.getElementById('gps-status').classList.remove('text-indigo-700');
+                document.getElementById('gps-status').classList.add('text-red-600');
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            }
+        );
+    });
+
+    // Lógica de Cámara/Foto
+    document.getElementById('openCamera').addEventListener('click', () => {
+        document.getElementById('photoFile').click();
+    });
+
+    document.getElementById('photoFile').addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64String = reader.result;
+                document.getElementById('base64Image').value = base64String;
+                const preview = document.getElementById('photo-preview');
+                preview.src = base64String;
+                preview.style.display = 'block';
+                showMessage('Foto capturada y lista para guardar.', 'text-green-600');
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    // Lógica del Modal (Visualización de imagen)
+    window.showModal = function(base64Image) {
+        document.getElementById('modal-image').src = base64Image;
+        document.getElementById('image-modal').classList.remove('hidden');
+        document.getElementById('image-modal').classList.add('flex');
+    };
+
+    window.hideModal = function() {
+        document.getElementById('image-modal').classList.add('hidden');
+        document.getElementById('image-modal').classList.remove('flex');
+        document.getElementById('modal-image').src = '';
+    };
+
+    // Inicializar la aplicación al cargar la ventana
+    window.onload = () => {
+        lucide.createIcons(); // Inicializar iconos
+        initializeFirebase(); // Conectar a Firestore
+    };
+
+</script>
+</body>
+</html>
